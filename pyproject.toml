@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "driverless-selenium"
+version = "0.1.0"
+description = ""
+authors = ["Eduard Stromenko <estromenko@mail.ru>"]
+readme = "README.md"
+packages = [{include = "driverless_selenium"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+trio-chrome-devtools-protocol = "^0.6.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
