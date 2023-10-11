@@ -1,0 +1,19 @@
+line-length = 100
+
+select = ["ALL"]
+
+ignore = [
+    "D100",
+    "D101",
+    "D102",
+    "D104",
+    "D105",
+    "D107",
+    "D211",   # blank-line-before-class
+    "D213",   # multi-line-summary-second-line
+    "UP037",  # quoted-annotation
+]
+
+exclude = [".git/", "demos/", "src/*"]
+
+target-version = "py312"
