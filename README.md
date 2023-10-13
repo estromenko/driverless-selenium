@@ -1,6 +1,16 @@
 # driverless-selenium
 
 
+# Example
+
+```python
+from driverless_selenium import Chrome
+
+browser = Chrome()
+
+browser.get("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+```
+
 # Roadmap
 
 webdriver.Chrome
