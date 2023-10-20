@@ -12,10 +12,13 @@ import cdp
 import cdp.dom
 import cdp.page
 import cdp.target
+import cdp.runtime
+import cdp.input_
 import requests
-from cdp.dom import Node
+from cdp.runtime import ScriptId
 from cdp.target import TargetID
 from selenium.webdriver import ChromeOptions
+from websockets.exceptions import WebSocketProtocolError
 from websockets.sync.client import ClientConnection, connect
 
 
@@ -37,8 +40,8 @@ class Chrome:
         tb: TracebackType | None,
         extra_arg: int = 0,
     ) -> None:
-        self.conn.close()
         if self.browser_pid:
+            self.conn.close()
             os.kill(self.browser_pid, signal.SIGTERM)
 
     def __del__(self: Self) -> None:
@@ -64,7 +67,11 @@ class Chrome:
         request = next(command)
         request["id"] = 0
         self.conn.send(json.dumps(request))
-        return json.loads(self.conn.recv())  # type: ignore[no-any-return]
+
+        while result := json.loads(self.conn.recv()):
+            if not result.get("method"):
+                return result
+        return {}
 
     def _find_browser_executable_name(self: Self) -> str:
         """Find the path to Chrome installed on the system."""
@@ -96,15 +103,22 @@ class Chrome:
         return str(response.json()[0]["id"])
 
     def _connect_to_session(self: Self) -> None:
-        time.sleep(2)
-
         if not self._debugger_address:
             return
 
-        self.target_id = self._get_target_id()
-        self.conn = connect(f"ws://{self._debugger_address}/devtools/page/{self.target_id}")
+        exception: Exception | None = None
+        for _ in range(3):
+            try:
+                self.target_id = self._get_target_id()
+                self.conn = connect(f"ws://{self._debugger_address}/devtools/page/{self.target_id}")
+                self._execute_command(cdp.target.activate_target(TargetID(self.target_id)))
+                return
+            except (WebSocketProtocolError, requests.exceptions.ConnectionError) as exc:
+                exception = exc
+                time.sleep(2)
 
-        self._execute_command(cdp.target.activate_target(TargetID(self.target_id)))
+        if exception:
+            raise exception
 
     def get(self: Self, url: str) -> None:
         if not self.browser_pid:
@@ -112,13 +126,65 @@ class Chrome:
             self._connect_to_session()
 
         self._execute_command(cdp.page.enable())
-        self._execute_command(cdp.page.navigate(url))
+        self._execute_command(cdp.page.set_ad_blocking_enabled(enabled=True))
+
+        request = next(cdp.page.navigate(url))
+        request["id"] = 0
+        self.conn.send(json.dumps(request))
+
+        while result := json.loads(self.conn.recv()):
+            if result.get("method") == "Page.loadEventFired":
+                return
+
+    def get_html(self, node_id: cdp.dom.NodeId) -> str:
+        return self._execute_command(cdp.dom.get_outer_html(cdp.dom.NodeId(node_id)))['result']['outerHTML']
+
+    def click(self: Self, node_id: cdp.dom.NodeId) -> None:
+        command = cdp.dom.get_content_quads(cdp.dom.NodeId(node_id))
+        result = self._execute_command(command)
+        coordinates = result['result']['quads']
+
+        x, y, _, _, _, _, _, _ = coordinates
+
+        self._execute_command(
+            cdp.input_.dispatch_mouse_event("mousePressed", int(x), int(y), button="left", click_count=1),
+        )
+        self._execute_command(
+            cdp.input_.dispatch_mouse_event("mouseReleased", int(x), int(y), button="left", click_count=1),
+        )
+
+    def find_by_css(self: "Chrome", css_selector: str) -> list[cdp.dom.NodeId]:
+        nodes = self._execute_command(
+            cdp.dom.query_selector_all(self.node_id, css_selector),
+        )[
+            "result"
+        ]["nodeIds"]
+
+        return nodes
+
+    def execute_script(self: Self, script: str) -> str:
+        script = script.removeprefix("return ")
+        self._execute_command(cdp.runtime.enable())
+        script_id = ScriptId(
+            self._execute_command(
+                cdp.runtime.compile_script(script, self.get_current_url(), persist_script=True),
+            )["result"]["scriptId"],
+        )
+        receive = self._execute_command(cdp.runtime.run_script(script_id))
+        return str(receive["result"]["result"]["value"])
 
     @property
-    def page_source(self: Self) -> Node:
-        return Node.from_json(self._execute_command(cdp.dom.get_document()))
+    def node_id(self: Self) -> cdp.dom.NodeId:
+        return cdp.dom.NodeId.from_json(
+            self._execute_command(cdp.dom.get_document())["result"]["root"]["nodeId"],
+        )
 
     @property
+    def page_source(self: Self) -> str:
+        return str(
+            self._execute_command(cdp.dom.get_outer_html(self.node_id))["result"]["outerHTML"],
+        )
+
     def get_current_url(self: Self) -> str:
         """Возвращает url текущей страницы."""
-        return str(self._execute_command(cdp.page.get_app_manifest())["url"])
+        return str(self._execute_command(cdp.page.get_app_manifest())["result"]["url"])
