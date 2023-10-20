@@ -49,7 +49,7 @@ class Chrome:
     def _get_random_available_port() -> int:
         sock = socket.socket()
         sock.bind(("", 0))
-        return sock.getsockname()[1]
+        return int(sock.getsockname()[1])
 
     _chrome_location_candidates = (
         "/usr/bin/chromium",
@@ -59,12 +59,12 @@ class Chrome:
         "/usr/local/bin/google-chrome",
     )
 
-    def _execute_command(self: Self, command: Any) -> dict:  # noqa: ANN401
+    def _execute_command(self: Self, command: Any) -> dict[Any, Any]:  # noqa: ANN401
         """Execute provided command and receives its result."""
         request = next(command)
         request["id"] = 0
         self.conn.send(json.dumps(request))
-        return json.loads(self.conn.recv())
+        return json.loads(self.conn.recv())  # type: ignore[no-any-return]
 
     def _find_browser_executable_name(self: Self) -> str:
         """Find the path to Chrome installed on the system."""
@@ -93,7 +93,7 @@ class Chrome:
 
     def _get_target_id(self: Self) -> str:
         response = requests.get(f"http://{self._debugger_address}/json", timeout=10)
-        return response.json()[0]["id"]
+        return str(response.json()[0]["id"])
 
     def _connect_to_session(self: Self) -> None:
         time.sleep(2)
@@ -121,4 +121,4 @@ class Chrome:
     @property
     def get_current_url(self: Self) -> str:
         """Возвращает url текущей страницы."""
-        return self._execute_command(cdp.page.get_app_manifest())["url"]
+        return str(self._execute_command(cdp.page.get_app_manifest())["url"])
