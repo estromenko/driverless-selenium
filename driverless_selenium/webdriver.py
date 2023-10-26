@@ -10,10 +10,10 @@ from typing import Any, Self
 
 import cdp
 import cdp.dom
-import cdp.page
-import cdp.target
-import cdp.runtime
 import cdp.input_
+import cdp.page
+import cdp.runtime
+import cdp.target
 import requests
 from cdp.runtime import ScriptId
 from cdp.target import TargetID
@@ -70,7 +70,7 @@ class Chrome:
 
         while result := json.loads(self.conn.recv()):
             if not result.get("method"):
-                return result
+                return dict(result)
         return {}
 
     def _find_browser_executable_name(self: Self) -> str:
@@ -112,10 +112,11 @@ class Chrome:
                 self.target_id = self._get_target_id()
                 self.conn = connect(f"ws://{self._debugger_address}/devtools/page/{self.target_id}")
                 self._execute_command(cdp.target.activate_target(TargetID(self.target_id)))
-                return
             except (WebSocketProtocolError, requests.exceptions.ConnectionError) as exc:
                 exception = exc
                 time.sleep(2)
+            else:
+                return
 
         if exception:
             raise exception
@@ -136,31 +137,31 @@ class Chrome:
             if result.get("method") == "Page.loadEventFired":
                 return
 
-    def get_html(self, node_id: cdp.dom.NodeId) -> str:
-        return self._execute_command(cdp.dom.get_outer_html(cdp.dom.NodeId(node_id)))['result']['outerHTML']
+    def get_html(self: Self, node_id: cdp.dom.NodeId) -> str:
+        response = self._execute_command(cdp.dom.get_outer_html(node_id))
+        return str(response["result"]["outerHTML"])
 
     def click(self: Self, node_id: cdp.dom.NodeId) -> None:
-        command = cdp.dom.get_content_quads(cdp.dom.NodeId(node_id))
+        command = cdp.dom.get_content_quads(node_id)
         result = self._execute_command(command)
-        coordinates = result['result']['quads']
+        coordinates = result["result"]["quads"]
 
         x, y, _, _, _, _, _, _ = coordinates
 
         self._execute_command(
-            cdp.input_.dispatch_mouse_event("mousePressed", int(x), int(y), button="left", click_count=1),
+            cdp.input_.dispatch_mouse_event(
+                "mousePressed", int(x), int(y), button="left", click_count=1,
+            ),
         )
         self._execute_command(
-            cdp.input_.dispatch_mouse_event("mouseReleased", int(x), int(y), button="left", click_count=1),
+            cdp.input_.dispatch_mouse_event(
+                "mouseReleased", int(x), int(y), button="left", click_count=1,
+            ),
         )
 
     def find_by_css(self: "Chrome", css_selector: str) -> list[cdp.dom.NodeId]:
-        nodes = self._execute_command(
-            cdp.dom.query_selector_all(self.node_id, css_selector),
-        )[
-            "result"
-        ]["nodeIds"]
-
-        return nodes
+        response = self._execute_command(cdp.dom.query_selector_all(self.node_id, css_selector))
+        return [cdp.dom.NodeId(node_id) for node_id in response["result"]["nodeIds"]]
 
     def execute_script(self: Self, script: str) -> str:
         script = script.removeprefix("return ")
