@@ -1,0 +1,55 @@
+name: Python Checks
+
+on: [push]
+
+jobs:
+  linter:
+    name: Run linter
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install poetry && poetry install
+
+      - name: Run ruff
+        run: poetry run ruff check . --config=ruff.toml
+
+  typechecker:
+    name: Run typechecker
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install poetry && poetry install
+
+      - name: Run mypy
+        run: poetry run mypy --strict .
+
+  formatter:
+    name: Run formatter
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install poetry && poetry install
+
+      - name: Run black
+        run: poetry run black -t py311 -l 100 --check .

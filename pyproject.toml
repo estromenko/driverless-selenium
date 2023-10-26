@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "driverless-selenium"
+version = "0.1.0"
+description = ""
+authors = ["Eduard Stromenko <estromenko@mail.ru>"]
+readme = "README.md"
+packages = [{include = "driverless_selenium"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+websockets = "^11.0.3"
+selenium = "^4.14.0"
+chrome-devtools-protocol = "^0.4.0"
+requests = "^2.31.0"
+
+[tool.poetry.group.dev.dependencies]
+black = "^23.9.1"
+mypy = "^1.6.0"
+ruff = "^0.0.292"
+types-requests = "^2.31.0.10"
+types-selenium = "^3.141.9"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
